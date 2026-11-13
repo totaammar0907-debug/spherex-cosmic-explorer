@@ -2,6 +2,5 @@ fastapi
 uvicorn
 astropy
 astroquery
-matplotlib
 numpy
 pillow
