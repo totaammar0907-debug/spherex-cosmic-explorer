@@ -1,1 +1,44 @@
+import astropy.units as u
+from astropy.coordinates import SkyCoord
+from astroquery.ipac.irsa import Irsa
+from astropy.io import fits
+import matplotlib.pyplot as plt
+import numpy as np
 
+# 1. إحداثيات القزم البني السريع WISE 0855 (من أهداف التحدي)
+coord = SkyCoord(ra=133.786245 * u.degree, dec=-7.244372 * u.degree, frame="icrs")
+size = 0.05 * u.degree
+bandpass = 'SPHEREx-D2'
+
+# 2. البحث عن الصور الحقيقية في أرشيف ناسا
+query = f"""
+SELECT
+    'https://irsa.ipac.caltech.edu/' || a.uri || '?center={coord.ra.deg},{coord.dec.deg}d&size={size.value}' AS uri,
+    p.time_bounds_lower
+FROM spherex.artifact a
+JOIN spherex.plane p ON a.planeid = p.planeid
+WHERE 1 = CONTAINS(POINT('ICRS', {coord.ra.deg}, {coord.dec.deg}), p.poly)
+        AND p.energy_bandpassname = '{bandpass}'
+ORDER BY p.time_bounds_lower
+
+
+
+
+"""
+
+print("جاري البحث في أرشيف ناسا...")
+results = Irsa.query_tap(query)
+print(f"تم العثور على {len(results)} صورة حقيقية!")
+
+# 3. عرض أول صورتين حقيقيتين للتأكد
+if len(results) > 0:
+    fig, axes = plt.subplots(1, min(3, len(results)), figsize=(12, 4))
+    for i in range(min(3, len(results))):
+        with fits.open(results['uri'][i]) as hdul:
+            img_data = hdul[1].data
+            # تحسين التباين لإظهار النجوم بوضوح
+            vmin, vmax = np.nanpercentile(img_data, [5, 99])
+            ax = axes[i] if len(results) > 1 else axes
+            ax.imshow(img_data, cmap='inferno', origin='lower', vmin=vmin, vmax=vmax)
+            ax.set_title(f"Time: {results['time_bounds_lower'][i]:.2f}")
+    plt.show()
